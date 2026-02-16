@@ -5,13 +5,20 @@
 
 FROM python:3.11-slim AS builder
 
+# Aktualizuj system i pip przed instalacją deps (fix dla CVE-2026-0861 w glibc)
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN pip install --upgrade pip wheel setuptools
+
 # Instal deps i przygotuj katalog static dla HTMX/CSS
 WORKDIR /app
 COPY app.py .
-RUN mkdir -p static && pip install --no-cache-dir fastapi uvicorn httpx
+RUN mkdir -p static && pip install --no-cache-dir --upgrade fastapi uvicorn httpx
 
 # Final stage
 FROM python:3.11-slim
+
+# Aktualizuj system w finalnym obrazie (fix dla CVE-2026-0861)
+RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app .
