@@ -43,10 +43,28 @@ jobs:
           severity: 'HIGH,CRITICAL'
           exit-code: '1'   # BLOCK pipeline jeśli są HIGH/CRITICAL
 
+      # === BUILD IMAGES LOCALLY (bez push) ===
+      - name: Build remediation-webhook locally
+        uses: docker/build-push-action@v5
+        with:
+          context: ./core/remediation-webhook
+          push: false
+          tags: autohealkube-webhook:${{ github.sha }}
+          load: true  # Załaduj obraz lokalnie dla Trivy
+
+      - name: Build dashboard locally
+        uses: docker/build-push-action@v5
+        with:
+          context: ./core/dashboard
+          push: false
+          tags: autohealkube-dashboard:${{ github.sha }}
+          load: true  # Załaduj obraz lokalnie dla Trivy
+
+      # === TRIVY IMAGE SCAN (po buildzie, przed push) ===
       - name: Trivy image scan – remediation-webhook
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:${{ github.sha }}'
+          image-ref: 'autohealkube-webhook:${{ github.sha }}'
           format: 'table'
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
@@ -54,27 +72,25 @@ jobs:
       - name: Trivy image scan – dashboard
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:${{ github.sha }}'
+          image-ref: 'autohealkube-dashboard:${{ github.sha }}'
           format: 'table'
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # === BUILD & PUSH IMAGES ===
-      - name: Build & push remediation-webhook
-        uses: docker/build-push-action@v5
-        with:
-          context: ./core/remediation-webhook
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:${{ github.sha }},
-                ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:latest
+      # === PUSH IMAGES TO GHCR (tylko jeśli scan przeszedł) ===
+      - name: Tag and push remediation-webhook
+        run: |
+          docker tag autohealkube-webhook:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:${{ github.sha }}
+          docker tag autohealkube-webhook:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:latest
+          docker push ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/autohealkube-webhook:latest
 
-      - name: Build & push dashboard
-        uses: docker/build-push-action@v5
-        with:
-          context: ./core/dashboard
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:${{ github.sha }},
-                ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:latest
+      - name: Tag and push dashboard
+        run: |
+          docker tag autohealkube-dashboard:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:${{ github.sha }}
+          docker tag autohealkube-dashboard:${{ github.sha }} ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:latest
+          docker push ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/autohealkube-dashboard:latest
 
       # === UPDATE MANIFESTS + TRIGGER ARGOCD SYNC ===
       - name: Update image tags in manifests
