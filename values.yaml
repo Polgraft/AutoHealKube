@@ -72,3 +72,9 @@ gcp:
 # CI/CD Thresholds
 ci:
   trivyFailOn: "CRITICAL"  # Block pipeline jeśli critical vulns
+
+  # ... (istniejąca treść)
+gcp:
+  projectId: "your-real-project-id"  # Twój GCP project ID
+  region: "us-central1"
+  gkeVersion: "1.29.2-gke.1"  # Aktualna GKE stable 2026

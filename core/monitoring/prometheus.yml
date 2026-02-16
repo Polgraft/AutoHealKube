@@ -1,0 +1,35 @@
+# core/monitoring/prometheus.yml - Prometheus rules dla AutoHealKube
+# Cel: Metryki #alertów, MTTR (mean time to remediation)
+# Apply: kubectl apply -f this_file.yaml -n monitoring
+# Reusable: Query Falco/P webhook logs.
+# Wersja: Kompatybilna z Prometheus 2.50.0+ (2026)
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: autohealkube-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: autohealkube.alerts
+    rules:
+    - alert: HighAlertCount
+      expr: sum(rate(falco_alerts_total[5m])) > 5  # Threshold z values.yaml później: {{ .Values.prometheus.metrics[0].threshold | default 5 }}
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: Wysoka liczba alertów ({{ $value }})
+        description: Liczba alertów Falco przekracza threshold.
+    - record: remediation_mttr
+      expr: avg_over_time(remediation_time_seconds[5m])  # Custom metryka z webhook (expo via /metrics w app.py)
+      labels:
+        type: mttr
+    - alert: HighMTTR
+      expr: remediation_mttr > 60  # >1 min, threshold z values
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: Wysoki MTTR ({{ $value }} sekund)
+        description: Średni czas remediacji przekracza threshold.

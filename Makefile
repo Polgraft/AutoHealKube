@@ -53,3 +53,31 @@ clean: ## Czyszczenie (usuwanie Minikube, etc.)
 	rm -rf infra/.terraform/
 
 .PHONY: help setup scan deploy-local deploy-cloud clean
+
+deploy-cloud: ## Deploy do GCP (Terraform init/apply + ArgoCD sync)
+	@echo "Inicjuj Terraform dla GCP..."
+	cd infra && terraform init
+	cd infra && terraform apply -auto-approve -var="project_id=$(shell yq e '.gcp.projectId' ../values.yaml)" -var="region=$(shell yq e '.gcp.region' ../values.yaml)" -var="gke_version=$(shell yq e '.gcp.gkeVersion' ../values.yaml)"
+	@echo "Konfiguruj kubectl do GKE..."
+	gcloud container clusters get-credentials autohealkube-cluster --zone $(shell yq e '.gcp.region' ../values.yaml)-a --project $(shell yq e '.gcp.projectId' ../values.yaml)
+	@echo "Deploy tools via Helm na GKE..."
+	# Security core
+	helm upgrade --install falco falco/falco --repo https://falcosecurity.github.io/charts --version $(shell yq e '.falco.version' values.yaml) --set driver.kind=modern_ebpf --namespace falco --create-namespace
+	helm upgrade --install kyverno kyverno/kyverno --repo https://kyverno.github.io/kyverno/ --version $(shell yq e '.kyverno.version' values.yaml) --namespace kyverno --create-namespace
+	# GitOps
+	helm upgrade --install argocd argo/argo-cd --repo https://argoproj.github.io/argo-helm --version $(shell yq e '.argocd.version' values.yaml) --namespace argocd --create-namespace
+	# Monitoring
+	helm upgrade --install prometheus prometheus-community/prometheus --repo https://prometheus-community.github.io/helm-charts --version $(shell yq e '.prometheus.version' values.yaml) --namespace monitoring --create-namespace
+	helm upgrade --install loki grafana/loki --repo https://grafana.github.io/helm-charts --version $(shell yq e '.loki.version' values.yaml) --namespace monitoring --create-namespace
+	helm upgrade --install grafana grafana/grafana --repo https://grafana.github.io/helm-charts --version 7.3.0 --namespace monitoring --create-namespace  # Dostosuj wersję
+	@echo "Apply custom configs (policies, falco-output)..."
+	kubectl apply -f core/policies/
+	kubectl apply -f core/monitoring/prometheus.yml
+	@echo "Deploy webhook i dashboard (images z GHCR via pipeline)..."
+	kubectl apply -f core/manifests/webhook-deployment.yaml
+	kubectl apply -f core/manifests/dashboard-deployment.yaml
+	@echo "Konfiguruj Falco output do webhook (service URL w chmurze)..."
+	helm upgrade falco falco/falco --set http_output.enabled=true --set http_output.url=$(shell yq e '.webhook.url' values.yaml) --namespace falco
+	kubectl rollout restart daemonset/falco -n falco
+	@echo "Sync via ArgoCD..."
+	argocd app sync autohealkube-core  # Zakładaj ArgoCD CLI
