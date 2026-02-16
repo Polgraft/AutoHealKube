@@ -1,0 +1,40 @@
+# core/manifests/dashboard-deployment.yaml - Deployment i Service dla HTMX dashboard
+# Apply: kubectl apply -f this_file.yaml
+# Obraz: Zbuduj/push wcześniej, np. minikube image load autohealkube-dashboard:latest
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: autohealkube-dashboard
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: autohealkube-dashboard
+  template:
+    metadata:
+      labels:
+        app: autohealkube-dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: autohealkube-dashboard:latest  # Zbudowany lokalnie lub z GHCR
+        imagePullPolicy: IfNotPresent         # Użyj lokalnego obrazu w Minikube
+        ports:
+        - containerPort: 8080
+        env:
+        - name: LOKI_URL
+          value: "http://loki.monitoring.svc:3100"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: autohealkube-dashboard
+  namespace: default
+spec:
+  selector:
+    app: autohealkube-dashboard
+  ports:
+  - port: 8080
+    targetPort: 8080

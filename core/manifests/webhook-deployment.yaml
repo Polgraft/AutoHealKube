@@ -20,6 +20,7 @@ spec:
       containers:
       - name: webhook
         image: autohealkube-webhook:latest  # Zbudowany lokalnie
+        imagePullPolicy: IfNotPresent       # Użyj lokalnego obrazu w Minikube
         ports:
         - containerPort: 8000
         env:

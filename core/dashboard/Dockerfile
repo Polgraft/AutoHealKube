@@ -5,10 +5,10 @@
 
 FROM python:3.11-slim AS builder
 
-# Instal deps
+# Instal deps i przygotuj katalog static dla HTMX/CSS
 WORKDIR /app
 COPY app.py .
-RUN pip install --no-cache-dir fastapi uvicorn httpx
+RUN mkdir -p static && pip install --no-cache-dir fastapi uvicorn httpx
 
 # Final stage
 FROM python:3.11-slim
@@ -16,9 +16,10 @@ FROM python:3.11-slim
 WORKDIR /app
 COPY --from=builder /app .
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Expose port
 EXPOSE 8080
 
-# Run app
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run app (przez python -m, żeby nie polegać na skrypcie uvicorn w PATH)
+CMD ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]

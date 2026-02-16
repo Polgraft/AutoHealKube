@@ -9,11 +9,11 @@ ENV="${1:-dev}"  # Pierwszy arg: env (dev/default)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR/.."
 
-# Parsuj values.yaml (użyj yq)
-KUBE_VERSION=$(yq e '.kubernetesVersion' "$ROOT_DIR/values.yaml")
-FALCO_VERSION=$(yq e '.falco.version' "$ROOT_DIR/values.yaml")
-KYVERNO_VERSION=$(yq e '.kyverno.version' "$ROOT_DIR/values.yaml")
-WEBHOOK_URL=$(yq e '.webhook.url' "$ROOT_DIR/values.yaml")  # DODANE: Pobierz URL z values.yaml (dla reusable)
+# Parsuj values.yaml (użyj yq - kompatybilne z wersją jq-style z apt)
+KUBE_VERSION=$(yq '.kubernetesVersion' "$ROOT_DIR/values.yaml" | tr -d '"')
+FALCO_VERSION=$(yq '.falco.version' "$ROOT_DIR/values.yaml" | tr -d '"')
+KYVERNO_VERSION=$(yq '.kyverno.version' "$ROOT_DIR/values.yaml" | tr -d '"')
+WEBHOOK_URL=$(yq '.webhook.url' "$ROOT_DIR/values.yaml" | tr -d '"')  # DODANE: Pobierz URL z values.yaml (dla reusable)
 
 # Krok 1: Call Ansible setup (instal deps)
 echo "Uruchamiam Ansible setup..."
@@ -27,9 +27,8 @@ fi
 
 # Krok 3: Instaluj Security core via Helm
 echo "Instaluję Falco (runtime detection)..."
-helm upgrade --install falco falco/falco \
+helm upgrade --install falco falco \
   --repo https://falcosecurity.github.io/charts \
-  --version "$FALCO_VERSION" \
   --set driver.kind=modern_ebpf \
   --namespace falco --create-namespace
 
@@ -38,9 +37,8 @@ echo "Aplicuję custom Falco output config..."
 # Najpierw apply ConfigMap (zastąp placeholders z values.yaml)
 sed "s|{{ .Values.webhook.url }}|$WEBHOOK_URL|g" "$ROOT_DIR/core/policies/falco-output.yaml" | kubectl apply -f -
 # Update Helm z override (http_output)
-helm upgrade --install falco falco/falco \
+helm upgrade --install falco falco \
   --repo https://falcosecurity.github.io/charts \
-  --version "$FALCO_VERSION" \
   --set driver.kind=modern_ebpf \
   --set http_output.enabled=true \
   --set http_output.url="$WEBHOOK_URL" \
@@ -50,18 +48,16 @@ helm upgrade --install falco falco/falco \
 kubectl rollout restart daemonset/falco -n falco
 
 echo "Instaluję Kyverno (policy enforcement)..."
-helm upgrade --install kyverno kyverno/kyverno \
+helm upgrade --install kyverno kyverno \
   --repo https://kyverno.github.io/kyverno/ \
-  --version "$KYVERNO_VERSION" \
   --namespace kyverno --create-namespace
 
-ARGOCD_VERSION=$(yq e '.argocd.version' "$ROOT_DIR/values.yaml")
-ARGOCD_REPO_URL=$(yq e '.argocd.repoUrl' "$ROOT_DIR/values.yaml")
+ARGOCD_VERSION=$(yq '.argocd.version' "$ROOT_DIR/values.yaml" | tr -d '"')
+ARGOCD_REPO_URL=$(yq '.argocd.repoUrl' "$ROOT_DIR/values.yaml" | tr -d '"')
 # DODANE: Krok 4: Instaluj ArgoCD (GitOps)
 echo "Instaluję ArgoCD..."
-helm upgrade --install argocd argo/argo-helm \
+helm upgrade --install argocd argo-cd \
   --repo https://argoproj.github.io/argo-helm \
-  --version "$ARGOCD_VERSION" \
   --namespace argocd --create-namespace
 
 # Czekaj na ready
@@ -99,13 +95,17 @@ kubectl apply -f "$ROOT_DIR/core/policies/"
 
 # DODANE: Krok 5: Build i deploy remediation webhook
 echo "Buduję i deployuję remediation webhook..."
-docker build -t autohealkube-webhook:latest "$ROOT_DIR/core/remediation-webhook/"
-minikube image load autohealkube-webhook:latest
+# Użyj pustej konfiguracji Docker, aby uniknąć docker-credential-desktop.exe pod WSL
+EMPTY_DOCKER_CONFIG_DIR="$ROOT_DIR/.docker-empty-config"
+mkdir -p "$EMPTY_DOCKER_CONFIG_DIR"
+echo '{}' > "$EMPTY_DOCKER_CONFIG_DIR/config.json"
+DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" docker build -t autohealkube-webhook:latest "$ROOT_DIR/core/remediation-webhook/"
+DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" minikube image load autohealkube-webhook:latest
 kubectl apply -f "$ROOT_DIR/core/manifests/webhook-deployment.yaml"
 # DODANE: Deploy HTMX dashboard
 echo "Buduję i deployuję HTMX dashboard..."
-docker build -t autohealkube-dashboard:latest "$ROOT_DIR/core/dashboard/"
-minikube image load autohealkube-dashboard:latest
+DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" docker build -t autohealkube-dashboard:latest "$ROOT_DIR/core/dashboard/"
+DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" minikube image load autohealkube-dashboard:latest
 kubectl apply -f "$ROOT_DIR/core/manifests/dashboard-deployment.yaml"
 
 

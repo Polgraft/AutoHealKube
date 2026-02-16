@@ -16,6 +16,7 @@
       - uvicorn
       - kubernetes  # kubernetes-client
       - requests
+    python_venv_path: /opt/autohealkube-venv  # Virtualenv na lokalne zależności Pythona (FastAPI, k8s-client)
     helm_repos:
       - name: falco
         url: https://falcosecurity.github.io/charts
@@ -40,6 +41,7 @@
           - curl
           - git
           - python3-pip
+          - python3-venv
           - yq  # Parser YAML
           - jq  # JSON parser (przydatny)
         state: present
@@ -84,22 +86,24 @@
       args:
         creates: /usr/local/bin/trivy
 
-    - name: Install Python dependencies (via pip)
+    - name: Install Python dependencies (via pip in venv)
       pip:
         name: "{{ python_deps }}"
         state: present
+        virtualenv: "{{ python_venv_path }}"
+        virtualenv_command: "python3 -m venv"
 
     - name: Config env (np. start Minikube jeśli dev)
       shell: minikube start --kubernetes-version=v{{ kubernetesVersion }}
       when: environment == "dev"
 
     - name: Verify installations
-      command: "{{ item }} --version"
+      command: "{{ item }}"
       loop:
-        - helm
-        - trivy
-        - minikube
-        - kubectl
+        - helm version
+        - trivy --version
+        - minikube version
+        - kubectl version --client=true
       register: versions
       changed_when: false
 
