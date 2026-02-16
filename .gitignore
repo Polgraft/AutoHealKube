@@ -1,0 +1,35 @@
+# Binary executables (should be installed via Ansible, not committed)
+ansible/argocd
+ansible/*.exe
+ansible/*.bin
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Docker
+.docker-empty-config/
+
+# Terraform
+infra/.terraform/
+*.tfstate
+*.tfstate.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
