@@ -41,3 +41,8 @@ Folder `examples/` zawiera vulnerable przykłady (np. vuln-nginx Dockerfile, vul
 - Pełna dokumentacja w trakcie budowy.
 
 Licencja: MIT. Kontributuj via PR!
+
+## Użycie safe-deployment
+- Edytuj `core/manifests/safe-deployment.yaml`: Zmień image na swój (np. myapp:v1).
+- Skanuj: `make scan` – pass jeśli no HIGH vulns.
+- Deploy: `kubectl apply -f core/manifests/safe-deployment.yaml` – ArgoCD auto-sync.

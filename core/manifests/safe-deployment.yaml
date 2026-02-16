@@ -1,0 +1,33 @@
+# core/manifests/safe-deployment.yaml - Reusable safe Deployment przykład dla AutoHealKube
+# Cel: Przykładowy deployment do skanowania/testów (pass Trivy/Kyverno), sync via ArgoCD.
+# Quick start: Ustaw image: swój IMAGE_NAME, deploy kubectl apply -f this.
+# Wersja: Kubernetes 1.29+ compat, securityContext non-root.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: safe-app
+  labels:
+    app: safe-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safe-app
+  template:
+    metadata:
+      labels:
+        app: safe-app
+    spec:
+      containers:
+      - name: app
+        image: "{{ .Values.imageName }}"  # Placeholder z values.yaml (np. nginx:1.25 - safe wersja bez vulns)
+        imagePullPolicy: "{{ .Values.imagePullPolicy }}"  # IfNotPresent
+        ports:
+        - containerPort: 80
+        securityContext:
+          runAsNonRoot: true  # Safe: non-root, pass Kyverno
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+      restartPolicy: Always
