@@ -90,14 +90,19 @@ jobs:
           git commit -m "chore: update image tags to ${{ github.sha }}" || echo "No changes to commit"
           git push
 
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
       - name: Trigger ArgoCD sync
-        uses: argoproj/argo-cd-action@v2
-        with:
-          command: app sync autohealkube-core
-          options: --prune --self-heal
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+        run: |
+          argocd app sync autohealkube-core \
+            --server ${{ secrets.ARGOCD_SERVER }} \
+            --auth-token ${{ secrets.ARGOCD_TOKEN }} \
+            --prune \
+            --self-heal
 
       # Upload Trivy SARIF do GitHub Security tab
       - name: Upload Trivy scan results to GitHub Security tab
