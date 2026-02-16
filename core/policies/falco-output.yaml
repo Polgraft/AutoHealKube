@@ -1,0 +1,32 @@
+# core/policies/falco-output.yaml - Custom config dla Falco outputs (webhook do remediation)
+# Cel: Wysyłaj alerty Falco jako JSON POST do webhook URL.
+# Użyj: kubectl apply -f this_file.yaml; potem restart Falco pods.
+# Reusable: URL z values.yaml.
+# Format: Falco 0.37+ compat, HTTP output.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+  namespace: falco
+data:
+  falco.yaml: |
+    # Custom outputs: Dodaj HTTP do webhook
+    http_output:
+      enabled: true
+      url: "{{ .Values.webhook.url }}"  # Z values.yaml, np. http://remediation-webhook.default.svc.cluster.local:8000/alert
+      method: POST
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer {{ .Values.webhook.secret }}"  # Opcjonalny secret
+    # Inne config: modern_ebpf już w Helm
+    json_output: true  # Format JSON dla alertów
+    json_include_output_property: true
+    json_include_tags_property: true
+    # Przykładowe rules enable (dla testów)
+    load_plugins: [example]
+    rules_file:
+      - /etc/falco/falco_rules.yaml
+      - /etc/falco/rules.d
+    # Thresholds z values.yaml
+    priority: "{{ .Values.falco.alertThreshold }}"  # np. high

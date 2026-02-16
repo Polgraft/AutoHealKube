@@ -1,0 +1,39 @@
+# core/manifests/webhook-deployment.yaml - Deployment i Service dla remediation webhook
+# Apply: kubectl apply -f this_file.yaml
+# Obraz: Zbuduj/push wcześniej, np. minikube image load autohealkube-webhook:latest
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remediation-webhook
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: remediation-webhook
+  template:
+    metadata:
+      labels:
+        app: remediation-webhook
+    spec:
+      containers:
+      - name: webhook
+        image: autohealkube-webhook:latest  # Zbudowany lokalnie
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REMEDIATION_ENABLED
+          value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: remediation-webhook
+  namespace: default
+spec:
+  selector:
+    app: remediation-webhook
+  ports:
+  - port: 8000
+    targetPort: 8000
