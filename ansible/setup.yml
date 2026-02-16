@@ -1,0 +1,103 @@
+---
+# ansible/setup.yml - Automatyzacja setupu dla AutoHealKube
+# Uruchom: ansible-playbook setup.yml -e "env=dev"
+# Zależności: Ansible 2.15+ (2026 stable), yq dla parsowania values.yaml
+# Instaluje: Helm, Trivy, Python (FastAPI, k8s-client), Minikube, kubectl, etc.
+# Zakładaj host: localhost (dev maszyna) lub GCP Cloud Shell.
+
+- name: Setup AutoHealKube environment
+  hosts: localhost
+  become: true  # sudo dla instalacji paczek
+  vars_files:
+    - ../values.yaml  # Ładuj config z values.yaml
+  vars:
+    python_deps:
+      - fastapi
+      - uvicorn
+      - kubernetes  # kubernetes-client
+      - requests
+    helm_repos:
+      - name: falco
+        url: https://falcosecurity.github.io/charts
+      - name: kyverno
+        url: https://kyverno.github.io/kyverno/
+      - name: argo
+        url: https://argoproj.github.io/argo-helm
+      - name: prometheus-community
+        url: https://prometheus-community.github.io/helm-charts
+      - name: grafana
+        url: https://grafana.github.io/helm-charts
+
+  tasks:
+    - name: Update package cache (dla Linux apt)
+      apt:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Install system dependencies (apt dla Ubuntu/Debian)
+      apt:
+        name:
+          - curl
+          - git
+          - python3-pip
+          - yq  # Parser YAML
+          - jq  # JSON parser (przydatny)
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Minikube (lokalny K8s)
+      shell: |
+        curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+        install minikube-linux-amd64 /usr/local/bin/minikube
+      args:
+        creates: /usr/local/bin/minikube
+
+    - name: Install kubectl
+      shell: |
+        curl -LO "https://dl.k8s.io/release/v{{ kubernetesVersion }}/bin/linux/amd64/kubectl"
+        install kubectl /usr/local/bin/kubectl
+      args:
+        creates: /usr/local/bin/kubectl
+
+    - name: Install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add Helm repos
+      command: helm repo add {{ item.name }} {{ item.url }}
+      loop: "{{ helm_repos }}"
+
+    - name: Update Helm repos
+      command: helm repo update
+
+    - name: Install Trivy
+      shell: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v{{ trivy.version }}
+      args:
+        creates: /usr/local/bin/trivy
+
+    - name: Install Python dependencies (via pip)
+      pip:
+        name: "{{ python_deps }}"
+        state: present
+
+    - name: Config env (np. start Minikube jeśli dev)
+      shell: minikube start --kubernetes-version=v{{ kubernetesVersion }}
+      when: environment == "dev"
+
+    - name: Verify installations
+      command: "{{ item }} --version"
+      loop:
+        - helm
+        - trivy
+        - minikube
+        - kubectl
+      register: versions
+      changed_when: false
+
+    - name: Display versions
+      debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ versions.results }}"
