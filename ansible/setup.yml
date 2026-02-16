@@ -64,6 +64,12 @@
         curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
       args:
         creates: /usr/local/bin/helm
+    - name: Install ArgoCD CLI
+      shell: |
+        curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/download/v{{ argocd.version }}/argocd-linux-amd64
+        install argocd /usr/local/bin/argocd
+      args:
+        creates: /usr/local/bin/argocd
 
     - name: Add Helm repos
       command: helm repo add {{ item.name }} {{ item.url }}

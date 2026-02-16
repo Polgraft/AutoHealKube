@@ -55,6 +55,44 @@ helm upgrade --install kyverno kyverno/kyverno \
   --version "$KYVERNO_VERSION" \
   --namespace kyverno --create-namespace
 
+ARGOCD_VERSION=$(yq e '.argocd.version' "$ROOT_DIR/values.yaml")
+ARGOCD_REPO_URL=$(yq e '.argocd.repoUrl' "$ROOT_DIR/values.yaml")
+# DODANE: Krok 4: Instaluj ArgoCD (GitOps)
+echo "Instaluję ArgoCD..."
+helm upgrade --install argocd argo/argo-helm \
+  --repo https://argoproj.github.io/argo-helm \
+  --version "$ARGOCD_VERSION" \
+  --namespace argocd --create-namespace
+
+# Czekaj na ready
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+
+# Stwórz Application dla sync manifestów z Git
+echo "Tworzę ArgoCD Application dla auto-sync..."
+cat <<EOF | kubectl apply -f -
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: autohealkube-core
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "$ARGOCD_REPO_URL"
+    targetRevision: HEAD
+    path: core/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+EOF
+
+
+
+
 # Krok 4: Apply przykładowe policies (z core/policies)
 echo "Aplicuję Kyverno policies..."
 kubectl apply -f "$ROOT_DIR/core/policies/"
