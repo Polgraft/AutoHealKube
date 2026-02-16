@@ -102,6 +102,12 @@ echo "Buduję i deployuję remediation webhook..."
 docker build -t autohealkube-webhook:latest "$ROOT_DIR/core/remediation-webhook/"
 minikube image load autohealkube-webhook:latest
 kubectl apply -f "$ROOT_DIR/core/manifests/webhook-deployment.yaml"
+# DODANE: Deploy HTMX dashboard
+echo "Buduję i deployuję HTMX dashboard..."
+docker build -t autohealkube-dashboard:latest "$ROOT_DIR/core/dashboard/"
+minikube image load autohealkube-dashboard:latest
+kubectl apply -f "$ROOT_DIR/core/manifests/dashboard-deployment.yaml"
+
 
 # Krok 6: Weryfikacja (dawny krok 5, rozszerzony)
 echo "Weryfikuję instalacje..."
