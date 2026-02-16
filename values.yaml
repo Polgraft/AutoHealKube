@@ -1,0 +1,74 @@
+# values.yaml - Centralna konfiguracja dla AutoHealKube
+# Użyj do Helm charts, webhook config, thresholds. Data: February 2026 versions.
+# Przykłady: Ustaw IMAGE_NAME na swój obraz do skanowania.
+
+# Globalne
+projectName: "AutoHealKube"
+kubernetesVersion: "1.29.2"  # Aktualna stabilna wersja K8s (2026)
+environment: "dev"  # dev/prod/cloud - wpływa na logging level
+
+# Docker/Obrazy
+imageName: "your-custom-image:latest"  # Placeholder: Zmień na swój obraz do skanowania (np. myapp:v1)
+imagePullPolicy: "IfNotPresent"
+
+# Falco (runtime detection)
+falco:
+  version: "0.37.1"  # Aktualna wersja Falco z modern_ebpf
+  alertThreshold: "high"  # low/medium/high - filtr alertów do webhook
+  ebpf: true  # Użyj modern_ebpf dla efficiency
+
+# Kyverno (policies)
+kyverno:
+  version: "1.12.0"  # Aktualna
+  policies:
+    - name: "enforce-non-root"
+      action: "mutate"  # mutate/block - auto-add securityContext
+
+# Trivy (scanning)
+trivy:
+  version: "0.49.0"  # Aktualna
+  severityBlock: "HIGH,CRITICAL"  # Block deploy jeśli vulns >= HIGH
+
+# Remediation Webhook (Python FastAPI)
+webhook:
+  url: "http://remediation-webhook.default.svc.cluster.local:8000/alert"  # Internal K8s service URL
+  port: 8000
+  secret: "webhook-secret"  # Placeholder dla auth (generuj via kubectl)
+  remediationActions:
+    - type: "patchSecurityContext"
+      enabled: true
+      context: "runAsNonRoot: true"  # Przykładowy patch YAML
+    - type: "rolloutRestart"
+      enabled: true
+
+# Monitoring/Logging
+prometheus:
+  version: "2.50.0"  # Aktualna
+  metrics:
+    - name: "alertCount"
+      query: "sum(falco_alerts)"  # Przykładowy PromQL dla #alertów
+    - name: "mttr"
+      query: "avg(remediation_time_seconds)"  # Mean Time To Remediation
+
+loki:
+  version: "2.9.4"  # Aktualna z Grafana Loki
+  retention: "7d"  # Log retention
+
+grafana:
+  dashboard: "autohealkube-incidents"  # HTMX-based dla ostatnich incydentów
+
+# ArgoCD (GitOps)
+argocd:
+  version: "2.10.0"  # Aktualna
+  repoUrl: "https://github.com/your-username/AutoHealKube.git"  # Zmień na swoje repo
+  syncPolicy: "automated"
+
+# Terraform/GCP
+gcp:
+  projectId: "your-gcp-project"  # Placeholder
+  region: "us-central1"
+  gkeVersion: "1.29.2-gke.1"  # GKE stable
+
+# CI/CD Thresholds
+ci:
+  trivyFailOn: "CRITICAL"  # Block pipeline jeśli critical vulns
