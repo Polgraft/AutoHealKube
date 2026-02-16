@@ -91,12 +91,13 @@ jobs:
           git push
 
       - name: Trigger ArgoCD sync
-        uses: argoproj/argo-cd-action/sync@v1
+        uses: argoproj/argo-cd-action@v2
         with:
-          argocd-server: ${{ secrets.ARGOCD_SERVER }}   # np. argocd.yourdomain.com
-          argocd-token: ${{ secrets.ARGOCD_TOKEN }}
-          application: autohealkube-core
-          sync-options: '--prune --self-heal'
+          command: app sync autohealkube-core
+          options: --prune --self-heal
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
 
       # Upload Trivy SARIF do GitHub Security tab
       - name: Upload Trivy scan results to GitHub Security tab
