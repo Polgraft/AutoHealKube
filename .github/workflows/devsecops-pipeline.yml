@@ -1,0 +1,166 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Trivy on Dockerfiles
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'docker/'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push vulnerable-app
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker/vulnerable-app
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/vulnerable-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push auto-heal-webhook
+        uses: docker/build-push-action@v5
+        with:
+          context: ./python
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auto-heal-webhook:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  lint-helm:
+    name: Lint Helm Charts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'latest'
+
+      - name: Lint Helm charts
+        run: |
+          helm lint helm/platform/
+          helm template helm/platform/ --debug
+
+  test-kyverno:
+    name: Test Kyverno Policies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Kyverno CLI
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/kyverno/kyverno/main/scripts/install-cli.sh | sh
+          sudo mv kyverno /usr/local/bin/
+
+      - name: Test Kyverno policies
+        run: |
+          for policy in kyverno/policies/**/*.yaml; do
+            echo "Testing $policy"
+            kyverno test $policy || true
+          done
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, lint-helm]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Deploy to Kubernetes
+        run: |
+          helm upgrade --install platform helm/platform/ \
+            --namespace autohealkube \
+            --create-namespace \
+            --set demoApp.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/vulnerable-app:latest \
+            --set autoHealWebhook.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auto-heal-webhook:latest
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, lint-helm]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Deploy to Kubernetes
+        run: |
+          helm upgrade --install platform helm/platform/ \
+            --namespace autohealkube \
+            --create-namespace \
+            --set demoApp.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/vulnerable-app:latest \
+            --set autoHealWebhook.image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auto-heal-webhook:latest

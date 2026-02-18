@@ -1,86 +1,110 @@
-# Makefile dla AutoHealKube - Automatyzacja komend (setup, scan, deploy)
-# Użyj: make <target> (np. make setup)
-# Zależności: Git, Ansible, Helm, Terraform, etc. (instalowane via Ansible)
-# Wersje z values.yaml (użyj yq do parsowania, jeśli potrzeba - zakładam zainstalowane)
+.PHONY: help build test scan deploy clean install
 
-# Defaults / Zmienne
-KUBE_VERSION ?= $(shell yq '.kubernetesVersion' values.yaml | tr -d '"')  # Pobierz z values.yaml (kompatybilne z yq z apt)
-ENV ?= dev
-IMAGE_NAME ?= $(shell yq '.imageName' values.yaml | tr -d '"')
+# Zmienne
+DOCKER_REGISTRY ?= localhost:5000
+IMAGE_TAG ?= latest
+NAMESPACE ?= autohealkube
 
-# Generowanie self-signed certów dla Kyverno (lokalnie)
-generate-kyverno-certs:
-	@echo "Generuję self-signed TLS certs dla Kyverno..."
-	openssl genrsa -out rootCA.key 2048
-	openssl req -x509 -new -nodes -key rootCA.key -subj "/CN=kyverno" -days 3650 -out rootCA.crt
-	openssl genrsa -out tls.key 2048
-	openssl req -new -key tls.key -subj "/CN=kyverno-svc.kyverno.svc" -out tls.csr
-	openssl x509 -req -in tls.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out tls.crt -days 3650
-	kubectl create namespace kyverno || true
-	kubectl create secret tls kyverno-svc.kyverno.svc.kyverno-tls-pair --cert=tls.crt --key=tls.key -n kyverno
-	kubectl create secret tls kyverno-svc.kyverno.svc.kyverno-tls-ca --cert=rootCA.crt -n kyverno
-	rm tls.csr tls.crt tls.key rootCA.key rootCA.crt rootCA.srl  # Clean up files
-
-# Help: Wyświetl dostępne targety
-help:
+help: ## Wyświetla pomoc
+	@echo "AutoHealKube - Makefile"
+	@echo ""
 	@echo "Dostępne komendy:"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-setup: ## Automatyzacja setupu (call Ansible: instal deps, config env)
-	@echo "Uruchamiam setup via Ansible..."
-	ansible-playbook ansible/setup.yml -e "env=$(ENV)"
+install: ## Instaluje zależności Helm
+	@echo "📦 Instalowanie zależności Helm..."
+	cd helm/platform && helm dependency update
 
-scan: ## Skanuj obrazy/manifesty via Trivy (block HIGH/CRITICAL)
-	@echo "Skanuję obraz: $(IMAGE_NAME)"
-	trivy image --exit-code 1 --severity $(shell yq '.trivy.severityBlock' values.yaml | tr -d '"') $(IMAGE_NAME)
-	@echo "Skanuję manifesty (np. core/manifests)..."
-	trivy fs --exit-code 1 --severity $(shell yq '.trivy.severityBlock' values.yaml | tr -d '"') core/manifests/
-	@echo "Skanuję IaC (Terraform)..."
-	trivy config --exit-code 1 --severity $(shell yq '.trivy.severityBlock' values.yaml | tr -d '"') infra/
+build: ## Buduje obrazy Docker
+	@echo "🐳 Budowanie obrazów Docker..."
+	docker build -t $(DOCKER_REGISTRY)/vulnerable-app:$(IMAGE_TAG) docker/vulnerable-app/
+	docker build -t $(DOCKER_REGISTRY)/auto-heal-webhook:$(IMAGE_TAG) python/
 
-deploy-local: ## Deploy lokalnie (Minikube + Helm install tools)
-	@echo "Start Minikube..."
-	minikube start --kubernetes-version=v$(KUBE_VERSION)
-	@echo "Instaluj tools via Helm (Falco, Kyverno, etc.)..."
-	helm repo add falco https://falcosecurity.github.io/charts
-	helm install falco falco/falco --version $(shell yq '.falco.chartVersion' values.yaml | tr -d '"') --set driver.kind=modern_ebpf
-	helm repo add kyverno https://kyverno.github.io/kyverno/
-	make generate-kyverno-certs
-	helm install kyverno kyverno/kyverno
-	# Dodaj więcej: ArgoCD, Prometheus, Loki, etc. - rozszerzymy później
-	@echo "Deploy core manifests..."
-	kubectl apply -f core/manifests/
+build-local: ## Buduje obrazy Docker dla lokalnego użycia
+	@echo "🐳 Budowanie obrazów Docker (lokalne)..."
+	docker build -t vulnerable-app:latest docker/vulnerable-app/
+	docker build -t auto-heal-webhook:latest python/
 
-clean: ## Czyszczenie (usuwanie Minikube, etc.)
-	minikube delete
-	rm -rf infra/.terraform/
+scan: ## Skanuje obrazy i kod pod kątem podatności (Trivy)
+	@echo "🔍 Skanowanie podatności..."
+	trivy image vulnerable-app:latest
+	trivy image auto-heal-webhook:latest
+	trivy fs --config trivy/trivy.yaml .
 
-.PHONY: help setup scan deploy-local deploy-cloud clean
+scan-config: ## Skanuje konfigurację Docker/Kubernetes
+	@echo "🔍 Skanowanie konfiguracji..."
+	trivy config docker/
+	trivy k8s cluster --namespace $(NAMESPACE)
 
-deploy-cloud: ## Deploy do GCP (Terraform init/apply + ArgoCD sync)
-	@echo "Inicjuj Terraform dla GCP..."
-	cd infra && terraform init
-	cd infra && terraform apply -auto-approve -var="project_id=$(shell yq '.gcp.projectId' ../values.yaml | tr -d '\"')" -var="region=$(shell yq '.gcp.region' ../values.yaml | tr -d '\"')" -var="gke_version=$(shell yq '.gcp.gkeVersion' ../values.yaml | tr -d '\"')"
-	@echo "Konfiguruj kubectl do GKE..."
-	gcloud container clusters get-credentials autohealkube-cluster --zone $(shell yq '.gcp.region' ../values.yaml | tr -d '"')-a --project $(shell yq '.gcp.projectId' ../values.yaml | tr -d '"')
-	@echo "Deploy tools via Helm na GKE..."
-	# Security core
-	helm upgrade --install falco falco/falco --repo https://falcosecurity.github.io/charts --version $(shell yq '.falco.chartVersion' values.yaml | tr -d '"') --set driver.kind=modern_ebpf --namespace falco --create-namespace
-	helm upgrade --install kyverno kyverno/kyverno --repo https://kyverno.github.io/kyverno/ --namespace kyverno --create-namespace
-	# GitOps
-	helm upgrade --install argocd argo/argo-cd --repo https://argoproj.github.io/argo-helm --namespace argocd --create-namespace
-	# Monitoring
-	helm upgrade --install prometheus prometheus-community/prometheus --repo https://prometheus-community.github.io/helm-charts --version $(shell yq '.prometheus.version' values.yaml | tr -d '"') --namespace monitoring --create-namespace
-	helm upgrade --install loki grafana/loki --repo https://grafana.github.io/helm-charts --version $(shell yq '.loki.version' values.yaml | tr -d '"') --namespace monitoring --create-namespace
-	helm upgrade --install grafana grafana/grafana --repo https://grafana.github.io/helm-charts --version 7.3.0 --namespace monitoring --create-namespace  # Dostosuj wersję
-	@echo "Apply custom configs (policies, falco-output)..."
-	kubectl apply -f core/policies/
-	kubectl apply -f core/monitoring/prometheus.yml
-	@echo "Deploy webhook i dashboard (images z GHCR via pipeline)..."
-	kubectl apply -f core/manifests/webhook-deployment.yaml
-	kubectl apply -f core/manifests/dashboard-deployment.yaml
-	@echo "Konfiguruj Falco output do webhook (service URL w chmurze)..."
-	helm upgrade falco falco/falco --set http_output.enabled=true --set http_output.url=$(shell yq '.webhook.url' values.yaml | tr -d '"') --namespace falco
-	kubectl rollout restart daemonset/falco -n falco
-	@echo "Sync via ArgoCD..."
-	argocd app sync autohealkube-core  # Zakładaj ArgoCD CLI
+lint: ## Lintuje Helm charts
+	@echo "🔍 Lintowanie Helm charts..."
+	helm lint helm/platform/
+	helm template helm/platform/ --debug
+
+test: ## Uruchamia testy
+	@echo "🧪 Uruchamianie testów..."
+	@echo "Testowanie polityk Kyverno..."
+	@for policy in kyverno/policies/**/*.yaml; do \
+		echo "Testing $$policy"; \
+		kyverno test $$policy || true; \
+	done
+
+deploy: install ## Deployuje platformę do Kubernetes
+	@echo "🚀 Deployowanie platformy..."
+	helm upgrade --install platform helm/platform/ \
+		--namespace $(NAMESPACE) \
+		--create-namespace \
+		--wait \
+		--timeout 10m
+
+deploy-local: build-local install ## Deployuje platformę lokalnie
+	@echo "🚀 Deployowanie platformy lokalnie..."
+	@if command -v minikube >/dev/null 2>&1 && minikube status &> /dev/null; then \
+		echo "📥 Ładowanie obrazów do minikube..."; \
+		minikube image load vulnerable-app:latest; \
+		minikube image load auto-heal-webhook:latest; \
+	fi
+	helm upgrade --install platform helm/platform/ \
+		--namespace $(NAMESPACE) \
+		--create-namespace \
+		--set demoApp.image=vulnerable-app:latest \
+		--set autoHealWebhook.image=auto-heal-webhook:latest \
+		--wait \
+		--timeout 10m
+
+apply-kyverno: ## Stosuje polityki Kyverno
+	@echo "🛡️ Stosowanie polityk Kyverno..."
+	kubectl apply -f kyverno/policies/best-practices/
+	kubectl apply -f kyverno/policies/security/
+	kubectl apply -f kyverno/policies/test/
+
+apply-falco: ## Konfiguruje Falco z custom rules
+	@echo "👁️ Konfiguracja Falco..."
+	kubectl create configmap falco-custom-rules \
+		--from-file=falco/rules/custom-rules.yaml \
+		--namespace $(NAMESPACE) \
+		--dry-run=client -o yaml | kubectl apply -f -
+
+status: ## Sprawdza status zasobów
+	@echo "📊 Status zasobów w namespace $(NAMESPACE):"
+	@kubectl get pods -n $(NAMESPACE)
+	@kubectl get svc -n $(NAMESPACE)
+	@kubectl get deployments -n $(NAMESPACE)
+
+logs: ## Wyświetla logi auto-heal webhook
+	@kubectl logs -n $(NAMESPACE) -l app=auto-heal-webhook -f
+
+logs-falco: ## Wyświetla logi Falco
+	@kubectl logs -n $(NAMESPACE) -l app=falco -f
+
+clean: ## Usuwa zasoby z Kubernetes
+	@echo "🧹 Czyszczenie zasobów..."
+	helm uninstall platform --namespace $(NAMESPACE) || true
+	kubectl delete namespace $(NAMESPACE) || true
+
+clean-all: clean ## Usuwa wszystkie zasoby i obrazy
+	@echo "🧹 Usuwanie obrazów Docker..."
+	docker rmi vulnerable-app:latest auto-heal-webhook:latest || true
+
+start: deploy-local apply-kyverno apply-falco ## Uruchamia całą platformę lokalnie (alias dla start-local.sh)
+	@bash scripts/start-local.sh

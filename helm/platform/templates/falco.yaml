@@ -1,0 +1,4 @@
+{{- if .Values.falco.enabled }}
+# Falco jest instalowany jako dependency chart
+# Ten plik może zawierać dodatkowe konfiguracje lub overrides
+{{- end }}

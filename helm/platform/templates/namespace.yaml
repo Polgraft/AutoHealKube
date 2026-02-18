@@ -1,0 +1,10 @@
+{{- if .Values.namespace.enabled }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.global.namespace | default "autohealkube" }}
+  labels:
+    name: {{ .Values.global.namespace | default "autohealkube" }}
+    app.kubernetes.io/name: platform
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

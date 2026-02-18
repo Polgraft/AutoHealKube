@@ -1,0 +1,114 @@
+# Globalne ustawienia
+global:
+  namespace: autohealkube
+
+# Namespace
+namespace:
+  enabled: true
+  name: autohealkube
+
+# Prometheus
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+    retention: 30d
+    resources:
+      requests:
+        memory: 2Gi
+        cpu: 1000m
+      limits:
+        memory: 4Gi
+        cpu: 2000m
+
+# Grafana
+grafana:
+  enabled: true
+  adminUser: admin
+  adminPassword: admin
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+  dashboards:
+    default:
+      kubernetes:
+        gnetId: 7249
+        revision: 1
+        datasource: Prometheus
+
+# Loki
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 50Gi
+  resources:
+    requests:
+      memory: 1Gi
+      cpu: 500m
+    limits:
+      memory: 2Gi
+      cpu: 1000m
+
+# Falco
+falco:
+  enabled: true
+  driver:
+    enabled: true
+    type: modern_ebpf
+  rules_file:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/custom-rules.yaml
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 250m
+    limits:
+      memory: 1Gi
+      cpu: 500m
+
+# Kyverno
+kyverno:
+  enabled: true
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+# Demo aplikacja
+demoApp:
+  enabled: true
+  image: vulnerable-app:latest
+  replicas: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 100m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+
+# Auto-heal webhook
+autoHealWebhook:
+  enabled: true
+  image: auto-heal-webhook:latest
+  replicas: 2
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 200m
+    limits:
+      memory: 512Mi
+      cpu: 500m

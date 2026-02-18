@@ -1,0 +1,43 @@
+# Konfiguracja Trivy Scanner
+format: json
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+exit-code: 1
+skip-dirs:
+  - .git
+  - node_modules
+  - vendor
+skip-files:
+  - package-lock.json
+  - yarn.lock
+
+# Custom policy - przykładowe reguły
+policies:
+  - id: no-root-user
+    description: "Obrazy nie powinny używać użytkownika root"
+    severity: HIGH
+    checks:
+      - type: dockerfile
+        pattern: |
+          FROM.*
+          USER root
+  - id: no-latest-tag
+    description: "Unikaj tagu 'latest' w obrazach"
+    severity: MEDIUM
+    checks:
+      - type: dockerfile
+        pattern: |
+          FROM.*:latest
+  - id: require-healthcheck
+    description: "Obrazy powinny mieć healthcheck"
+    severity: MEDIUM
+    checks:
+      - type: dockerfile
+        pattern: |
+          HEALTHCHECK
+
+# Ignorowanie znanych false positives
+ignore:
+  - CVE-2023-XXXXX  # Przykład - dodaj tutaj znane problemy

@@ -1,0 +1,30 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-labels
+  annotations:
+    policies.kyverno.io/title: Require Labels
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod,Deployment,Service
+    policies.kyverno.io/description: >-
+      Wymaga obecności standardowych etykiet na wszystkich zasobach.
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+    - name: check-labels
+      match:
+        any:
+        - resources:
+            kinds:
+            - Pod
+            - Deployment
+            - Service
+      validate:
+        message: "Wymagane etykiety: app.kubernetes.io/name, app.kubernetes.io/instance"
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+              app.kubernetes.io/instance: "?*"

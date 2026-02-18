@@ -1,0 +1,28 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: test-policy
+  annotations:
+    policies.kyverno.io/title: Test Policy
+    policies.kyverno.io/category: Test
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/description: >-
+      Przykładowa polityka testowa do demonstracji działania Kyverno.
+spec:
+  validationFailureAction: audit
+  background: true
+  rules:
+    - name: test-rule
+      match:
+        any:
+        - resources:
+            kinds:
+            - Pod
+            namespaces:
+            - default
+      validate:
+        message: "To jest przykładowa reguła testowa"
+        pattern:
+          metadata:
+            labels:
+              test: "?*"

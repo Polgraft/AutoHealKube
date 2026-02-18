@@ -1,0 +1,33 @@
+# Główna konfiguracja Falco
+# To jest plik konfiguracyjny, nie reguły
+
+# Włączanie custom rules
+rules_file:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/custom-rules.yaml
+
+# Output format
+json_output: true
+json_include_output_property: true
+json_include_tags_property: true
+
+# Webhook endpoint dla auto-heal
+http_output:
+  enabled: true
+  url: "http://auto-heal-webhook:8000/webhook/falco"
+  method: "POST"
+
+# Syslog output (opcjonalne)
+syslog_output:
+  enabled: false
+
+# File output (opcjonalne)
+file_output:
+  enabled: true
+  keep_alive: false
+  filename: /var/log/falco_events.log
+
+# Log level
+log_stderr: true
+log_syslog: false
+log_level: info

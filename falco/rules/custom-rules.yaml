@@ -1,0 +1,80 @@
+# Własne reguły Falco dla AutoHealKube
+# Te reguły rozszerzają domyślne reguły Falco
+
+- rule: Unauthorized Process Execution
+  desc: Wykrywa nieautoryzowane wykonanie procesów w kontenerach
+  condition: >
+    container.id != host and
+    proc.name in (shell_binaries) and
+    not proc.name in (falco_expected_shells)
+  output: >
+    Unauthorized shell execution detected
+    (user=%user.name container_id=%container.id container_name=%container.name
+     shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline)
+  priority: WARNING
+  tags: [process, shell, container]
+
+- rule: Suspicious Network Activity
+  desc: Wykrywa podejrzaną aktywność sieciową
+  condition: >
+    container.id != host and
+    evt.type = connect and
+    (fd.sip != "127.0.0.1" or fd.dip != "127.0.0.1") and
+    not fd.sip in (allowed_ips)
+  output: >
+    Suspicious network connection
+    (container_id=%container.id container_name=%container.name
+     src_ip=%fd.sip dst_ip=%fd.dip port=%fd.dport)
+  priority: NOTICE
+  tags: [network, container]
+
+- rule: File System Tampering
+  desc: Wykrywa modyfikacje krytycznych plików systemowych
+  condition: >
+    container.id != host and
+    evt.type in (open, openat) and
+    evt.is_open_write = true and
+    fd.name startswith /etc and
+    not fd.name in (allowed_config_files)
+  output: >
+    Critical system file modification detected
+    (container_id=%container.id container_name=%container.name
+     file=%fd.name user=%user.name)
+  priority: WARNING
+  tags: [filesystem, container]
+
+- rule: Privilege Escalation Attempt
+  desc: Wykrywa próby eskalacji uprawnień
+  condition: >
+    container.id != host and
+    evt.type = setuid and
+    user.uid != 0 and
+    user.uid < 1000
+  output: >
+    Privilege escalation attempt detected
+    (container_id=%container.id container_name=%container.name
+     user=%user.name uid=%user.uid)
+  priority: ERROR
+  tags: [privilege, container]
+
+- rule: Container Escape Attempt
+  desc: Wykrywa próby ucieczki z kontenera
+  condition: >
+    container.id != host and
+    evt.type = mount and
+    fd.name startswith /host
+  output: >
+    Container escape attempt detected
+    (container_id=%container.id container_name=%container.name
+     mount_point=%fd.name user=%user.name)
+  priority: CRITICAL
+  tags: [container, escape]
+
+- list: allowed_ips
+  items: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+
+- list: allowed_config_files
+  items: [/etc/hosts, /etc/resolv.conf, /etc/hostname]
+
+- list: falco_expected_shells
+  items: [sh, bash, dash]

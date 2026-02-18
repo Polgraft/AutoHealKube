@@ -1,35 +1,68 @@
-# Binary executables (should be installed via Ansible, not committed)
-ansible/argocd
-ansible/*.exe
-ansible/*.bin
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 venv/
 env/
 ENV/
+.venv
+
+# Kubernetes
+*.kubeconfig
+kubeconfig
+
+# Helm
+helm/platform/charts/
+helm/platform/Chart.lock
+*.tgz
 
 # Docker
-.docker-empty-config/
-
-# Terraform
-infra/.terraform/
-*.tfstate
-*.tfstate.backup
+.dockerignore
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
+*~
 .DS_Store
-Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Trivy
+trivy-results.*
+.trivy/
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
+# Secrets
+secrets/
+*.secret
+.env
+.env.local
+
+# Build artifacts
+*.tar.gz
+*.zip

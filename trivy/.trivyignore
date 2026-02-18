@@ -1,0 +1,6 @@
+# Trivy ignore file
+# Format: CVE-ID lub Vulnerability-ID
+
+# Przykładowe ignorowane CVE (dodaj rzeczywiste, jeśli potrzebne)
+# CVE-2023-XXXXX
+# CVE-2023-YYYYY
