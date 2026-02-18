@@ -1,4 +1,4 @@
-# examples/vuln-test.yaml - Vulnerable manifest do testów (bez securityContext dla Kyverno mutate/block)
+# tests/e2e/vulnerable-examples/vuln-test.yaml - Vulnerable manifest do testów (bez securityContext dla Kyverno mutate/block)
 # WARNING: Tylko do testów!
 # Cel: Pod bez non-root – Kyverno powinien mutate, Falco detect runtime.
 

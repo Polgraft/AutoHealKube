@@ -1,4 +1,4 @@
-# examples/vuln-nginx/Dockerfile - Vulnerable obraz do testów (known vuln dla Trivy block)
+# tests/e2e/vulnerable-examples/vuln-nginx/Dockerfile - Vulnerable obraz do testów (known vuln dla Trivy block)
 # WARNING: Tylko do testów! Nie deployuj w prod.
 # Cel: Obraz z HIGH/CRITICAL vuln (np. old nginx z CVE).
 

@@ -1,6 +1,6 @@
 # infra/main.tf - Terraform IaC dla GCP (VPC, GKE) w AutoHealKube
 # Użyj: terraform init; terraform apply -var="project_id=your-project"
-# Wersja: Terraform 1.7.0+ (2026), GKE 1.29+
+# Wersja: Terraform 1.7.0+ (2026), GKE 1.35+
 # Reusable: Vars z values.yaml (parsuj via Makefile później).
 
 provider "google" {
@@ -29,7 +29,7 @@ resource "google_container_cluster" "gke" {
   subnetwork = google_compute_subnetwork.subnet.id
 
   initial_node_count = 1
-  min_master_version = var.gke_version  # np. 1.29.2-gke.1
+  min_master_version = var.gke_version  # np. 1.35.1-gke.1
   node_version       = var.gke_version
   private_cluster_config {
     enable_private_nodes    = true
@@ -56,7 +56,7 @@ resource "google_project_iam_member" "gke_admin" {
 variable "project_id" {}
 variable "region" { default = "us-central1" }
 variable "project_name" { default = "autohealkube" }
-variable "gke_version" { default = "1.29.2-gke.1" }
+variable "gke_version" { default = "1.35.1-gke.1" }
 
 # Outputs
 output "gke_endpoint" {

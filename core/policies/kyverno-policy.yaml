@@ -1,11 +1,11 @@
 # core/policies/kyverno-policy.yaml - Przykładowa policy Kyverno dla AutoHealKube
 # Cel: Mutate (auto-add securityContext non-root) i validate/block podów bez tego.
 # Użyj: kubectl apply -f this_file.yaml
-# Wersja: Kompatybilna z Kyverno 1.12.0+ (2026)
+# Wersja: Kompatybilna z Kyverno 1.17.0+ (2026)
 # Reusable: Dla safe deployments – inni mogą stosować do swoich manifestów.
-# Test: Apply vuln-test.yaml z examples/ – powinno mutate/block.
+# Test: Apply vuln-test.yaml z tests/e2e/vulnerable-examples/ – powinno mutate/block.
 
-apiVersion: kyverno.io/v1
+apiVersion: kyverno.io/v2
 kind: ClusterPolicy
 metadata:
   name: enforce-non-root
@@ -36,10 +36,12 @@ spec:
             patchStrategicMerge:
               spec:
                 containers:
-                  - (name): "{{element.name}}"
+                  - name: "{{element.name}}"
                     securityContext:
                       runAsNonRoot: true  # Auto-add non-root
                       allowPrivilegeEscalation: false  # Dodatkowy fix
+                      capabilities:
+                        drop: ["ALL"]
     - name: validate-non-root
       match:
         any:

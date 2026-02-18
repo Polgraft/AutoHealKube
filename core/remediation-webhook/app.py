@@ -7,6 +7,7 @@
 # Reusable: Dostosuj rules do swoich alertów.
 
 import os
+import secrets
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from kubernetes import client, config
@@ -25,6 +26,70 @@ except config.ConfigException:
 
 v1 = client.CoreV1Api()
 apps_v1 = client.AppsV1Api()
+auth_v1 = client.AuthenticationV1Api()
+
+
+def _extract_bearer_token(request: Request) -> str | None:
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth:
+        return None
+    parts = auth.split(" ", 1)
+    if len(parts) != 2:
+        return None
+    scheme, token = parts[0].strip(), parts[1].strip()
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return token
+
+
+def _require_auth(request: Request) -> None:
+    """
+    Auth modes:
+      - off: no auth (ONLY for local debugging)
+      - shared-secret: verify Authorization: Bearer <token> == WEBHOOK_BEARER_TOKEN
+      - tokenreview: call Kubernetes TokenReview and allow only specific serviceaccounts
+    """
+    mode = os.getenv("WEBHOOK_AUTH_MODE", "shared-secret").strip().lower()
+    if mode == "off":
+        return
+
+    token = _extract_bearer_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+
+    if mode == "shared-secret":
+        expected = os.getenv("WEBHOOK_BEARER_TOKEN", "")
+        if not expected:
+            logger.error("WEBHOOK_AUTH_MODE=shared-secret but WEBHOOK_BEARER_TOKEN is not set")
+            raise HTTPException(status_code=503, detail="Webhook auth misconfigured")
+        if not secrets.compare_digest(token, expected):
+            raise HTTPException(status_code=403, detail="Invalid token")
+        return
+
+    if mode == "tokenreview":
+        # Restrict who can call this webhook (default: only Falco namespace serviceaccounts).
+        allowed_sas_env = os.getenv(
+            "WEBHOOK_ALLOWED_SERVICEACCOUNTS",
+            "system:serviceaccount:falco:falco,system:serviceaccount:falco:falco-sa",
+        )
+        allowed_sas = {s.strip() for s in allowed_sas_env.split(",") if s.strip()}
+
+        try:
+            review = client.V1TokenReview(spec=client.V1TokenReviewSpec(token=token))
+            resp = auth_v1.create_token_review(review)
+        except Exception as e:
+            logger.error(f"TokenReview failed: {e}")
+            raise HTTPException(status_code=503, detail="Auth backend unavailable")
+
+        if not resp.status or not resp.status.authenticated:
+            raise HTTPException(status_code=403, detail="Unauthenticated token")
+
+        username = (resp.status.user or {}).get("username") if isinstance(resp.status.user, dict) else getattr(resp.status.user, "username", None)
+        if not username or username not in allowed_sas:
+            raise HTTPException(status_code=403, detail="Caller not allowed")
+        return
+
+    raise HTTPException(status_code=500, detail="Unknown auth mode")
 
 # Model dla Falco alert (przykładny, dostosuj do Falco output format)
 class FalcoAlert(BaseModel):
@@ -43,6 +108,7 @@ async def receive_alert(alert: FalcoAlert, request: Request):
     Przykładowy payload: {"output": "Alert text", "rule": "Run shell in container", "output_fields": {"k8s.pod.name": "vuln-pod"}}
     Actions: Jeśli match rule (np. shell/exec), patch securityContext, rollout.
     """
+    _require_auth(request)
     logger.info(f"Odebrano alert: {alert.rule} - {alert.output}")
 
     # Pobierz config z env (z values.yaml via Helm później)

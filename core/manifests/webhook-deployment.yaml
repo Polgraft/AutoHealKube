@@ -17,6 +17,7 @@ spec:
       labels:
         app: remediation-webhook
     spec:
+      serviceAccountName: remediation-webhook
       containers:
       - name: webhook
         image: autohealkube-webhook:latest  # Zbudowany lokalnie
@@ -26,6 +27,14 @@ spec:
         env:
         - name: REMEDIATION_ENABLED
           value: "true"
+        - name: WEBHOOK_AUTH_MODE
+          value: "shared-secret"
+        - name: WEBHOOK_BEARER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: remediation-webhook-auth
+              key: bearerToken
+              optional: true
 ---
 apiVersion: v1
 kind: Service
@@ -38,3 +47,31 @@ spec:
   ports:
   - port: 8000
     targetPort: 8000
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: remediation-webhook
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: remediation-webhook-tokenreview
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: remediation-webhook-tokenreview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: remediation-webhook-tokenreview
+subjects:
+  - kind: ServiceAccount
+    name: remediation-webhook
+    namespace: default

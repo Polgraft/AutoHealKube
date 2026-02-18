@@ -8,6 +8,19 @@ KUBE_VERSION ?= $(shell yq '.kubernetesVersion' values.yaml | tr -d '"')  # Pobi
 ENV ?= dev
 IMAGE_NAME ?= $(shell yq '.imageName' values.yaml | tr -d '"')
 
+# Generowanie self-signed certów dla Kyverno (lokalnie)
+generate-kyverno-certs:
+	@echo "Generuję self-signed TLS certs dla Kyverno..."
+	openssl genrsa -out rootCA.key 2048
+	openssl req -x509 -new -nodes -key rootCA.key -subj "/CN=kyverno" -days 3650 -out rootCA.crt
+	openssl genrsa -out tls.key 2048
+	openssl req -new -key tls.key -subj "/CN=kyverno-svc.kyverno.svc" -out tls.csr
+	openssl x509 -req -in tls.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out tls.crt -days 3650
+	kubectl create namespace kyverno || true
+	kubectl create secret tls kyverno-svc.kyverno.svc.kyverno-tls-pair --cert=tls.crt --key=tls.key -n kyverno
+	kubectl create secret tls kyverno-svc.kyverno.svc.kyverno-tls-ca --cert=rootCA.crt -n kyverno
+	rm tls.csr tls.crt tls.key rootCA.key rootCA.crt rootCA.srl  # Clean up files
+
 # Help: Wyświetl dostępne targety
 help:
 	@echo "Dostępne komendy:"
@@ -27,26 +40,16 @@ scan: ## Skanuj obrazy/manifesty via Trivy (block HIGH/CRITICAL)
 
 deploy-local: ## Deploy lokalnie (Minikube + Helm install tools)
 	@echo "Start Minikube..."
-	minikube start --kubernetes-version=$(KUBE_VERSION)
+	minikube start --kubernetes-version=v$(KUBE_VERSION)
 	@echo "Instaluj tools via Helm (Falco, Kyverno, etc.)..."
 	helm repo add falco https://falcosecurity.github.io/charts
-	helm install falco falco/falco --version $(shell yq '.falco.version' values.yaml | tr -d '"') --set driver.kind=modern_ebpf
+	helm install falco falco/falco --version $(shell yq '.falco.chartVersion' values.yaml | tr -d '"') --set driver.kind=modern_ebpf
 	helm repo add kyverno https://kyverno.github.io/kyverno/
-	helm install kyverno kyverno/kyverno --version $(shell yq '.kyverno.version' values.yaml | tr -d '"')
+	make generate-kyverno-certs
+	helm install kyverno kyverno/kyverno
 	# Dodaj więcej: ArgoCD, Prometheus, Loki, etc. - rozszerzymy później
 	@echo "Deploy core manifests..."
 	kubectl apply -f core/manifests/
-
-deploy-cloud: ## Deploy do GCP (Terraform init/apply + ArgoCD sync)
-	@echo "Inicjuj Terraform dla GCP..."
-	cd infra && terraform init
-	cd infra && terraform apply -auto-approve -var="project_id=$(shell yq '.gcp.projectId' values.yaml | tr -d '\"')" -var="region=$(shell yq '.gcp.region' values.yaml | tr -d '\"')"
-	@echo "Konfiguruj kubectl do GKE..."
-	gcloud container clusters get-credentials autohealkube-cluster --zone $(shell yq '.gcp.region' values.yaml | tr -d '"')-a --project $(shell yq '.gcp.projectId' values.yaml | tr -d '"')
-	@echo "Deploy ArgoCD i sync..."
-	helm repo add argo https://argoproj.github.io/argo-helm
-	helm install argocd argo/argocd --version $(shell yq '.argocd.version' values.yaml | tr -d '"')
-	kubectl apply -f core/  # Przykładowo - sync manifestów via Argo później
 
 clean: ## Czyszczenie (usuwanie Minikube, etc.)
 	minikube delete
@@ -62,10 +65,10 @@ deploy-cloud: ## Deploy do GCP (Terraform init/apply + ArgoCD sync)
 	gcloud container clusters get-credentials autohealkube-cluster --zone $(shell yq '.gcp.region' ../values.yaml | tr -d '"')-a --project $(shell yq '.gcp.projectId' ../values.yaml | tr -d '"')
 	@echo "Deploy tools via Helm na GKE..."
 	# Security core
-	helm upgrade --install falco falco/falco --repo https://falcosecurity.github.io/charts --version $(shell yq '.falco.version' values.yaml | tr -d '"') --set driver.kind=modern_ebpf --namespace falco --create-namespace
-	helm upgrade --install kyverno kyverno/kyverno --repo https://kyverno.github.io/kyverno/ --version $(shell yq '.kyverno.version' values.yaml | tr -d '"') --namespace kyverno --create-namespace
+	helm upgrade --install falco falco/falco --repo https://falcosecurity.github.io/charts --version $(shell yq '.falco.chartVersion' values.yaml | tr -d '"') --set driver.kind=modern_ebpf --namespace falco --create-namespace
+	helm upgrade --install kyverno kyverno/kyverno --repo https://kyverno.github.io/kyverno/ --namespace kyverno --create-namespace
 	# GitOps
-	helm upgrade --install argocd argo/argo-cd --repo https://argoproj.github.io/argo-helm --version $(shell yq '.argocd.version' values.yaml | tr -d '"') --namespace argocd --create-namespace
+	helm upgrade --install argocd argo/argo-cd --repo https://argoproj.github.io/argo-helm --namespace argocd --create-namespace
 	# Monitoring
 	helm upgrade --install prometheus prometheus-community/prometheus --repo https://prometheus-community.github.io/helm-charts --version $(shell yq '.prometheus.version' values.yaml | tr -d '"') --namespace monitoring --create-namespace
 	helm upgrade --install loki grafana/loki --repo https://grafana.github.io/helm-charts --version $(shell yq '.loki.version' values.yaml | tr -d '"') --namespace monitoring --create-namespace

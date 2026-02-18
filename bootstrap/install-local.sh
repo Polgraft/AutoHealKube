@@ -27,15 +27,24 @@ fi
 
 # Krok 3: Instaluj Security core via Helm
 echo "Instaluję Falco (runtime detection)..."
-helm upgrade --install falco falco \
+helm install falco falcosecurity/falco \
+  --version "$(yq e '.falco.chartVersion' "$ROOT_DIR/values.yaml")" \
   --repo https://falcosecurity.github.io/charts \
   --set driver.kind=modern_ebpf \
   --namespace falco --create-namespace
 
 # DODANE: Krok 3.5: Apply custom Falco config (output do webhook)
 echo "Aplicuję custom Falco output config..."
-# Najpierw apply ConfigMap (zastąp placeholders z values.yaml)
-sed "s|{{ .Values.webhook.url }}|$WEBHOOK_URL|g" "$ROOT_DIR/core/policies/falco-output.yaml" | kubectl apply -f -
+# Najpierw wygeneruj token i skonfiguruj auth end-to-end (Falco -> header -> webhook)
+WEBHOOK_BEARER_TOKEN="$(openssl rand -hex 32)"
+kubectl create secret generic remediation-webhook-auth \
+  --from-literal=bearerToken="$WEBHOOK_BEARER_TOKEN" \
+  -n default \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Apply ConfigMap (wstrzyknij URL + bearer token do header Authorization)
+sed -e "s|__WEBHOOK_URL__|$WEBHOOK_URL|g" -e "s|__WEBHOOK_BEARER_TOKEN__|$WEBHOOK_BEARER_TOKEN|g" \
+  "$ROOT_DIR/core/policies/falco-output.yaml" | kubectl apply -f -
 # Update Helm z override (http_output)
 helm upgrade --install falco falco \
   --repo https://falcosecurity.github.io/charts \
@@ -95,9 +104,10 @@ kubectl apply -f "$ROOT_DIR/core/policies/"
 
 # DODANE: Krok 5: Build i deploy remediation webhook
 echo "Buduję i deployuję remediation webhook..."
-# Użyj pustej konfiguracji Docker, aby uniknąć docker-credential-desktop.exe pod WSL
-EMPTY_DOCKER_CONFIG_DIR="$ROOT_DIR/.docker-empty-config"
-mkdir -p "$EMPTY_DOCKER_CONFIG_DIR"
+# Użyj pustej konfiguracji Docker, aby uniknąć docker-credential-desktop.exe pod WSL.
+# Tworzymy tymczasową konfigurację zamiast trzymać `.docker-empty-config/` w repo.
+EMPTY_DOCKER_CONFIG_DIR="$(mktemp -d)"
+trap 'rm -rf "$EMPTY_DOCKER_CONFIG_DIR"' EXIT
 echo '{}' > "$EMPTY_DOCKER_CONFIG_DIR/config.json"
 DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" docker build -t autohealkube-webhook:latest "$ROOT_DIR/core/remediation-webhook/"
 DOCKER_CONFIG="$EMPTY_DOCKER_CONFIG_DIR" minikube image load autohealkube-webhook:latest

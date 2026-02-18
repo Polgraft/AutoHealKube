@@ -15,23 +15,23 @@ Autonomiczna platforma DevSecOps do wykrywania i auto-naprawy zagrożeń w konte
 3. Ustaw swój obraz do skanowania: Zmodyfikuj `core/manifests/safe-deployment.yaml` lub dodaj własny (ustaw env `IMAGE_NAME`).
 4. Uruchom setup: `make setup` (instaluje deps via Ansible).
 5. Skanuj i deployuj: `make scan` (Trivy check), `make deploy-cloud` (Terraform + ArgoCD sync).
-6. Testuj: Deployuj przykłady z `examples/` (tylko do testów – ostrzeżenie poniżej).
+6. Testuj: Deployuj przykłady z `tests/e2e/vulnerable-examples/` (tylko do testów – ostrzeżenie poniżej).
 
 ## Struktura repo
 - `.github/workflows/`: CI/CD pipelines (build, Trivy scan, Argo sync).
 - `ansible/`: Playbooks do automatyzacji setupu.
 - `bootstrap/`: Skrypty startowe (np. call Ansible).
 - `core/`: Reusable, bezpieczny kod (webhook, polityki Kyverno, dashboard HTMX, manifesty safe, monitoring Prometheus).
-- `examples/`: Przykłady vuln (do demo/testów tylko – nie używaj w prod!).
+- `tests/e2e/vulnerable-examples/`: Przykłady vuln (do demo/testów tylko – nie używaj w prod!).
 - `infra/`: Terraform IaC dla GCP (VPC, GKE).
 - `Makefile`: Komendy ułatwienia (setup, scan, deploy).
 - `values.yaml`: Konfiguracja (URL, thresholds).
 - `README.md`: Ten plik.
 
-## Ostrzeżenie dla examples/
-Folder `examples/` zawiera vulnerable przykłady (np. vuln-nginx Dockerfile, vuln-test.yaml) tylko do demo i testów. **Nie deployuj ich w produkcji!** Używaj do symulacji ataków (np. runtime threats w Falco).
+## Ostrzeżenie dla vulnerable-examples/
+Folder `tests/e2e/vulnerable-examples/` zawiera vulnerable przykłady (np. vuln-nginx Dockerfile, vuln-test.yaml) tylko do demo i testów. **Nie deployuj ich w produkcji!** Używaj do symulacji ataków (np. runtime threats w Falco).
 
-## Demo Vulns in Examples
+## Demo Vulns (vulnerable-examples)
 - `vuln-nginx/Dockerfile`: Przykładowy obraz z known vuln (do Trivy scan block).
 - `vuln-test.yaml`: Manifest bez securityContext (Kyverno mutate/fix).
 
