@@ -30,8 +30,8 @@ kubeconfig
 
 # Helm
 helm/platform/charts/
-helm/platform/Chart.lock
 *.tgz
+# Chart.lock should be committed (like package-lock.json)
 
 # Docker
 .dockerignore

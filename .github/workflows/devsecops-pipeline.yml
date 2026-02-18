@@ -91,6 +91,18 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Add required Helm repositories
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add falcosecurity https://falcosecurity.github.io/charts
+          helm repo add kyverno https://kyverno.github.io/kyverno/
+          helm repo update
+
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build helm/platform/
+
       - name: Lint Helm charts
         run: |
           helm lint helm/platform/
@@ -132,6 +144,18 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v3
 
+      - name: Add required Helm repositories
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add falcosecurity https://falcosecurity.github.io/charts
+          helm repo add kyverno https://kyverno.github.io/kyverno/
+          helm repo update
+
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build helm/platform/
+
       - name: Deploy to Kubernetes
         run: |
           helm upgrade --install platform helm/platform/ \
@@ -156,6 +180,18 @@ jobs:
 
       - name: Set up Helm
         uses: azure/setup-helm@v3
+
+      - name: Add required Helm repositories
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo add falcosecurity https://falcosecurity.github.io/charts
+          helm repo add kyverno https://kyverno.github.io/kyverno/
+          helm repo update
+
+      - name: Build Helm dependencies
+        run: |
+          helm dependency build helm/platform/
 
       - name: Deploy to Kubernetes
         run: |

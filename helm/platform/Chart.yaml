@@ -4,6 +4,7 @@ description: Umbrella chart dla platformy DevSecOps AutoHealKube
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
+# icon: https://raw.githubusercontent.com/Polgraft/AutoHealKube/main/helm/platform/icon.png
 dependencies:
   - name: prometheus
     version: "25.0.0"
