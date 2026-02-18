@@ -8,7 +8,7 @@ kubernetesVersion: "1.35.1"  # Aktualna stabilna wersja K8s (2026)
 environment: "dev"  # dev/prod/cloud - wpływa na logging level
 
 # Docker/Obrazy
-imageName: "nginx:1.25"  # Placeholder: Zmień na swój obraz do skanowania (np. myapp:v1)
+imageName: "nginx:1.27-alpine"  # Placeholder: Zmień na swój obraz do skanowania (np. myapp:v1)
 imagePullPolicy: "IfNotPresent"
 
 # Falco (runtime detection)

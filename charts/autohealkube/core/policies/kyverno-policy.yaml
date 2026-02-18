@@ -5,7 +5,7 @@
 # Reusable: Dla safe deployments – inni mogą stosować do swoich manifestów.
 # Test: Apply vuln-test.yaml z tests/e2e/vulnerable-examples/ – powinno mutate/block.
 
-apiVersion: kyverno.io/v2
+apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: enforce-non-root
