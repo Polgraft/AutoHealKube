@@ -1,0 +1,18 @@
+dependencies:
+- name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 25.0.0
+- name: grafana
+  repository: https://grafana.github.io/helm-charts
+  version: 7.0.0
+- name: loki-stack
+  repository: https://grafana.github.io/helm-charts
+  version: 2.10.3
+- name: falco
+  repository: https://falcosecurity.github.io/charts
+  version: 2.0.0
+- name: kyverno
+  repository: https://kyverno.github.io/kyverno/
+  version: 3.3.0
+digest: sha256:cafc7f6a43bc7846cf329634e669dea0adccd4af59a430159a71b12c9804cb7e
+generated: "2026-02-19T13:39:08.71600708+01:00"

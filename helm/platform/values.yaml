@@ -59,6 +59,16 @@ loki:
       memory: 2Gi
       cpu: 1000m
 
+# Loki Stack (Promtail configuration)
+loki-stack:
+  grafana:
+    testFramework:
+      enabled: false
+  promtail:
+    config:
+      clients:
+        - url: http://platform-loki.autohealkube.svc.cluster.local:3100/loki/api/v1/push
+
 # Falco
 falco:
   enabled: true

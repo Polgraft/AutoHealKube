@@ -23,6 +23,6 @@ dependencies:
     repository: https://falcosecurity.github.io/charts
     condition: falco.enabled
   - name: kyverno
-    version: "3.0.0"
+    version: "3.3.0"
     repository: https://kyverno.github.io/kyverno/
     condition: kyverno.enabled

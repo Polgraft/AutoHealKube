@@ -51,9 +51,18 @@ test: ## Uruchamia testy
 
 deploy: install ## Deployuje platformę do Kubernetes
 	@echo "🚀 Deployowanie platformy..."
+	@if ! kubectl get namespace $(NAMESPACE) &>/dev/null; then \
+		echo "📦 Tworzenie namespace $(NAMESPACE)..."; \
+		kubectl create namespace $(NAMESPACE); \
+	fi
+	@echo "📝 Dodawanie etykiet Helm do namespace..."
+	@kubectl label namespace $(NAMESPACE) app.kubernetes.io/managed-by=Helm --overwrite || true
+	@kubectl annotate namespace $(NAMESPACE) meta.helm.sh/release-name=platform --overwrite || true
+	@kubectl annotate namespace $(NAMESPACE) meta.helm.sh/release-namespace=$(NAMESPACE) --overwrite || true
 	helm upgrade --install platform helm/platform/ \
 		--namespace $(NAMESPACE) \
-		--create-namespace \
+		--set loki-stack.promtail.config.clients[0].url=http://platform-loki.$(NAMESPACE).svc.cluster.local:3100/loki/api/v1/push \
+		--set falco.enabled=false \
 		--wait \
 		--timeout 10m
 
@@ -64,11 +73,20 @@ deploy-local: build-local install ## Deployuje platformę lokalnie
 		minikube image load vulnerable-app:latest; \
 		minikube image load auto-heal-webhook:latest; \
 	fi
+	@if ! kubectl get namespace $(NAMESPACE) &>/dev/null; then \
+		echo "📦 Tworzenie namespace $(NAMESPACE)..."; \
+		kubectl create namespace $(NAMESPACE); \
+	fi
+	@echo "📝 Dodawanie etykiet Helm do namespace..."
+	@kubectl label namespace $(NAMESPACE) app.kubernetes.io/managed-by=Helm --overwrite || true
+	@kubectl annotate namespace $(NAMESPACE) meta.helm.sh/release-name=platform --overwrite || true
+	@kubectl annotate namespace $(NAMESPACE) meta.helm.sh/release-namespace=$(NAMESPACE) --overwrite || true
 	helm upgrade --install platform helm/platform/ \
 		--namespace $(NAMESPACE) \
-		--create-namespace \
 		--set demoApp.image=vulnerable-app:latest \
 		--set autoHealWebhook.image=auto-heal-webhook:latest \
+		--set loki-stack.promtail.config.clients[0].url=http://platform-loki.$(NAMESPACE).svc.cluster.local:3100/loki/api/v1/push \
+		--set falco.enabled=false \
 		--wait \
 		--timeout 10m
 
