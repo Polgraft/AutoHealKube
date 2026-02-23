@@ -1,4 +1,4 @@
-# 🧪 Przewodnik testowania AutoHealKube
+# Przewodnik testowania AutoHealKube
 
 ## Wymagania wstępne
 
@@ -50,7 +50,7 @@ sudo apt-get update
 sudo apt-get install trivy
 ```
 
-## 🚀 Szybki start testowy
+## Szybki start testowy
 
 ### 1. Uruchomienie całej platformy
 ```bash
@@ -93,7 +93,7 @@ kubectl logs -n autohealkube -l app=falco -f
 kubectl logs -n autohealkube -l app=demo-app -f
 ```
 
-## 🧪 Testowanie poszczególnych komponentów
+## Testowanie poszczególnych komponentów
 
 ### Test 1: Testowanie Trivy (Security Scanning)
 
@@ -248,7 +248,7 @@ curl -X POST http://localhost:8000/webhook/prometheus \
 
 **Oczekiwany wynik**: Webhook powinien zrestartować deployment.
 
-## 📊 Testowanie monitoringu
+## Testowanie monitoringu
 
 ### Grafana
 ```bash
@@ -269,7 +269,7 @@ kubectl port-forward -n autohealkube svc/platform-loki 3100:80
 # Otwórz http://localhost:3100
 ```
 
-## 🔍 Debugowanie
+## Debugowanie
 
 ### Sprawdzenie czy wszystkie komponenty działają
 ```bash
@@ -316,7 +316,7 @@ kubectl delete namespace autohealkube
 make clean-all
 ```
 
-## 📝 Checklist testowy
+## Checklist testowy
 
 - [ ] Wszystkie pody są w stanie Running
 - [ ] Trivy wykrywa podatności w vulnerable-app
@@ -328,7 +328,7 @@ make clean-all
 - [ ] Grafana wyświetla dashboards
 - [ ] Auto-heal działa automatycznie
 
-## 🐛 Znane problemy
+## Znane problemy
 
 1. **Falco nie startuje**: Może wymagać kernel headers. W minikube: `minikube ssh -- sudo apt-get install linux-headers-$(uname -r)`
 
@@ -338,7 +338,7 @@ make clean-all
 
 4. **Obrazy nie są dostępne**: W minikube użyj `minikube image load` lub skonfiguruj lokalne registry
 
-## 💡 Wskazówki
+## Wskazówki
 
 - Użyj `kubectl get events -n autohealkube -w` do śledzenia eventów w czasie rzeczywistym
 - Użyj `kubectl logs -f` do śledzenia logów w czasie rzeczywistym
