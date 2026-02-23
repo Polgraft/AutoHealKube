@@ -1,6 +1,6 @@
 # AutoHealKube
 
-Kompleksowa platforma DevSecOps dla Kubernetes z automatycznym naprawianiem problemów bezpieczeństwa i wydajnościowych.
+Platforma DevSecOps dla Kubernetes z automatycznym naprawianiem problemów bezpieczeństwa i wydajnościowych.
 
 ## 📖 Dokumentacja
 
@@ -179,6 +179,16 @@ kubectl port-forward -n autohealkube svc/platform-prometheus-server 9090:80
 # Auto-heal webhook
 kubectl port-forward -n autohealkube svc/auto-heal-webhook 8000:8000
 # Otwórz http://localhost:8000/docs
+
+### Loki (logi)
+Loki jest deployowany w namespace `autohealkube` i dostępny pod adresem `http://platform-loki:3100`.
+
+#### Dodanie Loki jako data source w Grafanie
+
+```bash
+# 1. Otwórz Grafanę
+kubectl port-forward -n autohealkube svc/platform-grafana 3000:80
+
 ```
 
 ## 🔍 Security Scanning
@@ -257,8 +267,6 @@ W razie problemów:
 ## 📄 Licencja
 
 MIT
-
-## 🙏 Podziękowania
 
 - [Falco](https://falco.org/)
 - [Kyverno](https://kyverno.io/)
