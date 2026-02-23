@@ -1,4 +1,4 @@
-# 🚀 Wypchnięcie projektu do GitHub
+# Wypchnięcie projektu do GitHub
 
 ## Krok 1: Przygotowanie zmian
 
@@ -112,7 +112,7 @@ Jeśli chcesz automatyczny deploy do Kubernetes z GitHub Actions:
    - `K8S_TOKEN` - token Kubernetes
    - `K8S_CA_CERT` - certyfikat CA
 
-## 📝 Tworzenie nowego repozytorium na GitHub (jeśli jeszcze nie istnieje)
+## Tworzenie nowego repozytorium na GitHub (jeśli jeszcze nie istnieje)
 
 ### Metoda 1: Przez GitHub Web UI
 
@@ -140,7 +140,7 @@ gh auth login
 gh repo create AutoHealKube --public --source=. --remote=origin --push
 ```
 
-## 🔄 Aktualizacja istniejącego repozytorium
+## Aktualizacja istniejącego repozytorium
 
 Jeśli już masz repo na GitHub i chcesz zaktualizować:
 
@@ -156,7 +156,7 @@ git commit -m "feat: Aktualizacja struktury projektu"
 git push origin main
 ```
 
-## 🏷️ Tworzenie release/tagu
+## Tworzenie release/tagu
 
 ```bash
 # Utworzenie taga
@@ -166,7 +166,7 @@ git tag -a v1.0.0 -m "Release version 1.0.0 - Initial release"
 git push origin v1.0.0
 ```
 
-## ⚠️ Troubleshooting
+## Troubleshooting
 
 ### Problem: "Permission denied"
 ```bash
@@ -189,7 +189,7 @@ git push origin main
 - Sprawdź czy workflow ma poprawne uprawnienia (Settings → Actions → General)
 - Sprawdź logi w zakładce "Actions" na GitHub
 
-## 📚 Przydatne linki
+## Przydatne linki
 
 - [GitHub Docs - Pushing to a remote](https://docs.github.com/en/get-started/using-git/pushing-commits-to-a-remote-repository)
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
